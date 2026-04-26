@@ -13,6 +13,11 @@ import { authMiddleware } from './middleware/auth.js';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Configuration
+const ZABBIX_URL = process.env.ZABBIX_URL || 'http://zabbix-server:80';
+const NTOPNG_URL = process.env.NTOPNG_URL || 'http://ntopng:3000';
+const NTOPNG_PASSWORD = process.env.NTOPNG_PASSWORD || 'admin';
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
@@ -31,42 +36,13 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/reports', reportRoutes);
 
-// Zabbix proxy routes
-app.use('/api/zabbix', zabbixProxyRoutes);
-
-// ntopng proxy routes
-app.use('/api/ntopng', ntopngProxyRoutes);
-
-// Error handler
-app.use(errorHandler);
-
-// Zabbix proxy middleware
-import { Router } from 'express';
-const zabbixProxyRoutes = Router();
-const NTOPNG_TIMEOUT = 30000;
-const zabbixConfig = {
-  baseUrl: process.env.ZABBIX_URL || 'http://zabbix:80',
-  user: process.env.ZABBIX_USER || 'Admin',
-  password: process.env.ZABBIX_PASSWORD || 'zabbix'
-};
-
-// ntopng proxy middleware
-const ntopngProxyRoutes = Router();
-const ntopngConfig = {
-  baseUrl: process.env.NTOPNG_URL || 'http://ntopng:3000',
-  password: process.env.NTOPNG_PASSWORD || 'admin'
-};
-
-// ─────────────────────────────────────────────────────────────
-// Zabbix Routes
-// ─────────────────────────────────────────────────────────────
-zabbixProxyRoutes.post('/api_jsonrpc.php', async (req, res, next) => {
+// Zabbix JSON-RPC proxy
+app.post('/api/zabbix/api_jsonrpc.php', async (req, res, next) => {
   try {
-    const response = await fetch(`${zabbixConfig.baseUrl}/api_jsonrpc.php`, {
+    const response = await fetch(`${ZABBIX_URL}/api_jsonrpc.php`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body),
-      signal: AbortSignal.timeout(NTOPNG_TIMEOUT)
+      body: JSON.stringify(req.body)
     });
     const data = await response.json();
     res.json(data);
@@ -75,26 +51,9 @@ zabbixProxyRoutes.post('/api_jsonrpc.php', async (req, res, next) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// ntopng Routes
-// ─────────────────────────────────────────────────────────────
-ntopngProxyRoutes.get('/api/lua/*.lua', async (req, res, next) => {
-  try {
-    const path = req.params[0];
-    const queryString = new URLSearchParams(req.query).toString();
-    const url = `${ntopngConfig.baseUrl}/ntopng/${path}.lua${queryString ? '?' + queryString : ''}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': 'Basic ' + Buffer.from(`admin:${ntopngConfig.password}`).toString('base64')
-      },
-      signal: AbortSignal.timeout(NTOPNG_TIMEOUT)
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    next(error);
-  }
-});
+// ntopng proxy - skip for now, add later when ntopng API is stable
+// Error handler
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Argus API Gateway running on port ${PORT}`);

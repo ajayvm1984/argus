@@ -3,10 +3,10 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
-COPY . .
+COPY src ./src
 
-EXPOSE 3001
+EXPOSE 8080
 
 CMD ["node", "src/index.js"]

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, integer, bigint, timestamp, jsonb, numeric, pgSequence } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, integer, bigint, timestamp, jsonb, numeric } from 'drizzle-orm/pg-core';
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -29,7 +29,7 @@ export const sites = pgTable('sites', {
 export const devices = pgTable('devices', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  siteId: uuid('site_id').references(() => sites.id, { onDelete: 'SET NULL' }),
+  siteId: uuid('site_id').references(() => sites.id, { onDelete: 'set null' }),
   zabbixHostId: bigint('zabbix_host_id', { mode: 'number' }).notNull().unique(),
   displayName: varchar('display_name', { length: 128 }).notNull(),
   deviceType: varchar('device_type', { length: 32 }).notNull(),
@@ -77,7 +77,7 @@ export const alertDeliveries = pgTable('alert_deliveries', {
 });
 
 export const licenseState = pgTable('license_state', {
-  id: integer('id').primaryKey().check('id = 1'),
+  id: integer('id').primaryKey(),
   licenseKey: varchar('license_key', { length: 64 }).notNull(),
   accountId: varchar('account_id', { length: 64 }).notNull(),
   productToken: varchar('product_token', { length: 64 }).notNull(),
