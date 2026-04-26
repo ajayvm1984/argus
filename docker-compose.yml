@@ -1,0 +1,229 @@
+# Argus - Network Monitoring Platform
+# docker-compose.yml - Production Stack
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # Reverse Proxy (TLS termination)
+  # ─────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: argus-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - argus-api
+      - argus-ui
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # React UI
+  # ─────────────────────────────────────────────────────────────
+  argus-ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: argus-ui
+    environment:
+      - VITE_API_URL=http://argus-api:8080
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Node.js API Gateway
+  # ─────────────────────────────────────────────────────────────
+  argus-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: argus-api
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_HOST=argus-db
+      - DB_PORT=5432
+      - DB_NAME=argus
+      - DB_USER=argus
+      - DB_PASSWORD=${ARGUS_DB_PASSWORD}
+      - KEYCLOAK_URL=http://keycloak:8180
+      - KEYCLOAK_REALM=argus
+      - ZABBIX_URL=http://zabbix:80
+      - ZABBIX_USER=Admin
+      - ZABBIX_PASSWORD=${ZABBIX_PASSWORD}
+      - NTOPNG_URL=http://ntopng:3000
+      - NTOPNG_PASSWORD=${NTOPNG_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_SMS_FROM=${TWILIO_SMS_FROM}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    depends_on:
+      - argus-db
+      - keycloak
+      - zabbix
+      - ntopng
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Alert Dispatcher (Twilio worker)
+  # ─────────────────────────────────────────────────────────────
+  argus-alert-dispatcher:
+    build:
+      context: ./alert-dispatcher
+      dockerfile: Dockerfile
+    container_name: argus-alert-dispatcher
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=argus-db
+      - DB_PORT=5432
+      - DB_NAME=argus
+      - DB_USER=argus
+      - DB_PASSWORD=${ARGUS_DB_PASSWORD}
+      - KEYCLOAK_URL=http://keycloak:8180
+      - KEYCLOAK_REALM=argus
+      - ZABBIX_URL=http://zabbix:80
+      - ZABBIX_USER=Admin
+      - ZABBIX_PASSWORD=${ZABBIX_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_SMS_FROM=${TWILIO_SMS_FROM}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    depends_on:
+      - argus-db
+      - keycloak
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # License Daemon (Python, runs as systemd service on host)
+  # ─────────────────────────────────────────────────────────────
+  # Note: license-daemon runs on host as systemd service, not in Docker
+  # See license-daemon/README.md for installation instructions
+
+  # ─────────────────────────────────────────────────────────────
+  # Keycloak (Identity Provider)
+  # ─────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0
+    container_name: argus-keycloak
+    command: start-dev --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
+      - keycloak-data:/opt/keycloak/data
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Zabbix Server (SNMP polling engine)
+  # ─────────────────────────────────────────────────────────────
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.2-latest
+    container_name: argus-zabbix
+    environment:
+      - DB_SERVER_HOST=argus-db
+      - POSTGRES_USER=argus
+      - POSTGRES_PASSWORD=${ARGUS_DB_PASSWORD}
+      - ZBX_CACHESIZE=512M
+      - ZBX_HISTORYCACHESIZE=128M
+      - ZBX_TRENDCACHESIZE=128M
+    volumes:
+      - ./infra/zabbix/templates:/usr/local/share/zabbix/externalscripts:ro
+      - zabbix-snmptraps:/var/lib/snmptrap
+    depends_on:
+      - argus-db
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.2-latest
+    container_name: argus-zabbix-web
+    environment:
+      - DB_SERVER_HOST=argus-db
+      - POSTGRES_USER=argus
+      - POSTGRES_PASSWORD=${ARGUS_DB_PASSWORD}
+      - ZBX_SERVER_NAME=Argus
+      - PHP_TZ=Asia/Dubai
+    depends_on:
+      - argus-db
+      - zabbix-server
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # ntopng (NetFlow/sFlow analytics)
+  # ─────────────────────────────────────────────────────────────
+  ntopng:
+    image: ntopng/ntopng:stable
+    container_name: argus-ntopng
+    privileged: true
+    environment:
+      - NTOPNG_ADMIN_USER=admin
+      - NTOPNG_ADMIN_PASSWORD=${NTOPNG_PASSWORD}
+    volumes:
+      - ntopng-data:/ntopng
+      - ntopng-scripts:/usr/local/ntopng/scripts
+      - /proc:/mnt/proc:ro
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_unprivileged_port_start=0
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL + TimescaleDB (Argus + Zabbix data)
+  # ─────────────────────────────────────────────────────────────
+  argus-db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: argus-db
+    environment:
+      - POSTGRES_USER=argus
+      - POSTGRES_PASSWORD=${ARGUS_DB_PASSWORD}
+      - POSTGRES_DB=argus
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - argus-net
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────────────────────
+networks:
+  argus-net:
+    driver: bridge
+
+# ─────────────────────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+  keycloak-data:
+  zabbix-snmptraps:
+  ntopng-data:
+  ntopng-scripts:

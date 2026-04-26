@@ -1,21 +1,14 @@
 # Argus — Network Monitoring Platform
 
-**Status:** 🚧 Under Development
+**Status:** 🚧 Under Active Development
 
 ---
 
 ## What is Argus?
 
-Argus is a **complete network monitoring platform** for MSPs (Managed Service Providers). Built as a single VM solution that customers install on their own infrastructure.
+Argus is a complete network monitoring platform for MSPs (Managed Service Providers). Drop into a single Ubuntu 22.04 VM, monitors customer networks via SNMP and NetFlow, sends smart alerts via WhatsApp/SMS/Email.
 
-### Features
-
-- 🔍 **SNMP Monitoring** via Zabbix — polls routers, switches, servers, firewalls
-- 📊 **NetFlow Analysis** via ntopng — top talkers, active flows, traffic analysis  
-- 🔔 **Smart Alerts** — WhatsApp → SMS → Email via Twilio
-- 🛡️ **Multi-Tenant** — manage multiple customer networks from one dashboard
-- 🔐 **License Control** — Keygen.sh validation, 30-day offline grace
-- 🌐 **Browser Install Wizard** — /setup guides configuration
+**Target customers:** Hotels, restaurants, offices, hospitals — any organization that needs network monitoring but lacks IT staff.
 
 ---
 
@@ -25,46 +18,34 @@ Argus is a **complete network monitoring platform** for MSPs (Managed Service Pr
 |-------|-----------|
 | VM | Ubuntu 22.04 LTS |
 | Containers | Docker Compose |
-| UI | React 18 + TypeScript + Vite + Tailwind |
-| API | Node.js + Express |
-| Auth | Keycloak 22.x |
+| UI | React 18 + TypeScript + Vite + Tailwind CSS |
+| API | Node.js + Express + TypeScript |
 | Database | PostgreSQL 16 + TimescaleDB |
+| Auth | Keycloak 22.x |
 | Monitoring | Zabbix Server 7.2 LTS |
 | Flow Analytics | ntopng 6.x |
-| Alert Dispatcher | Node.js worker + Twilio |
-| License | Python daemon + Keygen.sh |
-| Reverse Proxy | Nginx 1.25 |
+| Alerts | Node.js worker + Twilio |
+| License | Keygen.sh |
 
 ---
 
-## Architecture
+## Quick Start
 
-```
-                    +---------------------+
-              443 --| Nginx (TLS)          |
-                    +----------+----------+
-                               |
-                  +------------+------------+
-                  |                          |
-                  v                          v
-            +-----------+          +--------------------+
-            | Argus UI  |          | Argus API Gateway  |
-            | (static)  |          | (Node.js :8080)   |
-            +-----------+          +----------+---------+
-                                                |
-                  +-----------------------------+-------------+
-                  |                  |                        |
-                  v                  v                        v
-            +-----------+     +------------+          +--------------+
-            | Keycloak  |     | Zabbix API |          | ntopng       |
-            | :8180     |     | :80        |          | :3000        |
-            +-----+------+     +------+-----+          +--------------+
-                  |                  |
-                  v                  v
-            +-----------+     +-------------------+
-            | Postgres  |     | Postgres          |
-            | (keycloak)|     | (zabbix + argus)  |
-            +-----------+     +-------------------+
+```bash
+# 1. Clone the repo
+git clone https://github.com/ajayvm1984/argus.git
+cd argus
+
+# 2. Copy environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Install (Ubuntu 22.04)
+chmod +x install.sh
+sudo ./install.sh
+
+# 4. Access
+# https://your-server-ip   (HTTPS, self-signed cert initially)
 ```
 
 ---
@@ -73,13 +54,30 @@ Argus is a **complete network monitoring platform** for MSPs (Managed Service Pr
 
 ```
 argus/
-├── docker-compose.yml       # Production compose
-├── docker-compose.dev.yml   # Dev overrides
+├── docker-compose.yml       # Full production stack
+├── .env.example            # Environment template
+├── install.sh              # One-command Ubuntu installer
+├── LICENSE                 # Proprietary license
 ├── ui/                     # React frontend
+│   ├── Dockerfile
+│   └── src/
 ├── api/                    # Node.js API gateway
-├── alert-dispatcher/        # Twilio worker
-├── license-daemon/          # Keygen.sh daemon
-├── infra/                  # Nginx, Keycloak, Zabbix configs
+│   ├── Dockerfile
+│   └── src/
+│       ├── routes/         # REST endpoints
+│       ├── middleware/      # Auth, error handling
+│       ├── models/         # Drizzle ORM schemas
+│       └── services/        # Zabbix, ntopng clients
+├── alert-dispatcher/        # Twilio alert worker
+│   ├── Dockerfile
+│   └── src/
+├── license-daemon/          # Keygen.sh Python daemon
+│   └── argus_license/
+├── infra/                  # Infrastructure configs
+│   ├── nginx/
+│   ├── keycloak/
+│   ├── zabbix/
+│   └── postgres/
 └── docs/                   # Documentation
 ```
 
@@ -87,29 +85,62 @@ argus/
 
 ## Development Status
 
-| Module | Status |
-|--------|--------|
-| 0. Setup | 🔄 In Progress |
-| 1. Docker Scaffold | ⬜ Not Started |
-| 2. Database Schema | ⬜ Not Started |
-| 3. API Gateway | ⬜ Not Started |
-| 4. Zabbix Integration | ⬜ Not Started |
-| 5. ntopng Integration | ⬜ Not Started |
-| 6. License Daemon | ⬜ Not Started |
-| 7. Alert Dispatcher | ⬜ Not Started |
-| 8. React UI | ⬜ Not Started |
-| 9. Install Wizard | ⬜ Not Started |
+| Module | Status | Notes |
+|--------|--------|-------|
+| 0. Setup & Scaffold | 🔄 In Progress | Docker Compose scaffold complete |
+| 1. Database Schema | 🔄 In Progress | Drizzle ORM schemas defined |
+| 2. API Gateway | 🔄 In Progress | Core routes implemented |
+| 3. Zabbix Integration | ⬜ Not Started | |
+| 4. ntopng Integration | ⬜ Not Started | |
+| 5. License Daemon | ⬜ Not Started | |
+| 6. Alert Dispatcher | ⬜ Not Started | |
+| 7. React UI | ⬜ Not Started | |
+| 8. Install Wizard | ⬜ Not Started | |
+
+---
+
+## Architecture
+
+```
+                         Cloudflare/CDN
+                               |
+                    +----------+----------+
+                    |    Nginx (TLS)      |
+                    +----------+----------+
+                               |
+              +----------------+------------+
+              |                             |
+              v                             v
+        +-----------+             +----------------+
+        |  Argus UI |             |  Argus API      |
+        |  (React)  |             |  (Node.js :8080)|
+        +-----------+             +--------+---------+
+                                                  |
+                         +-------------------------+--------------------+
+                         |                         |                    |
+                         v                         v                    v
+                   +----------+            +-----------+         +--------+
+                   | Keycloak |            |  Zabbix   |         | ntopng |
+                   |  :8180   |            |   :80     |         | :3000  |
+                   +----+------+            +-----+-----+         +----+---+
+                        |                        |                    |
+                        v                        v                    v
+                   +-----------------------------------------+
+                   |         PostgreSQL + TimescaleDB         |
+                   |            (argus-db :5432)              |
+                   +-----------------------------------------+
+```
 
 ---
 
 ## Owner
 
-**Meridian Cyber** — Ajay Mathai
+**Meridian Cyber**
+- Website: https://meridiancyber.ai
 - Email: ajay@meridiancyber.ai
-- Web: https://meridiancyber.ai
 
 ---
 
 ## License
 
-Proprietary — All rights reserved Meridian Cyber.
+Proprietary — All rights reserved Meridian Cyber. See LICENSE file.
