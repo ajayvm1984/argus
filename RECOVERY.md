@@ -98,3 +98,30 @@ Oracle Cloud credentials needed:
 5. Resume from next action
 
 **Source of truth:** This GitHub repo.
+
+## Updated: 2026-04-27 02:58 GST
+
+### Recent Progress
+- Module 1 pushed to GitHub: docker-compose.yml, API gateway, database schema
+- All credentials stored in Keychain
+- LaunchAgent set up to retry Oracle Cloud VM every 30 minutes
+- Docker Hub login confirmed working
+
+### What's Built So Far
+- docker-compose.yml (full stack: nginx, ui, api, alert-dispatcher, keycloak, zabbix, ntopng, postgres)
+- API routes: tenants, sites, devices, alerts, reports, health
+- Database schema (Drizzle ORM): tenants, sites, devices, alert_rules, alert_deliveries, license_state
+- Alert dispatcher: skeleton with Zabbix polling
+- Install script for Ubuntu 22.04
+
+### Next Steps
+1. Wait for Oracle Cloud VM (automatic retry every 30 min)
+2. Complete UI scaffold (React)
+3. Test full stack on Mac Docker
+4. Module 2: Database migrations
+
+### VM Retry
+- LaunchAgent: ~/Library/LaunchAgents/com.argus.vm-retry.plist
+- Script: ~/bin/argus-vm-retry.sh
+- Log: ~/argus-vm-retry.log
+
