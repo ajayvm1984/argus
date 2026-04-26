@@ -1,61 +1,85 @@
-# CURRENT_WORK.md — What I Was Doing
+# CURRENT_WORK.md — Argus Project
 
-**Last Updated:** 2026-04-27 02:27 GST
-
----
-
-## Tonight's Progress
-
-### Completed ✅
-- Docker Desktop downloaded to Mac
-- Docker CLI + Docker Compose installed (~/bin)
-- GitHub CLI installed and authenticated
-- GitHub repo created: ajayvm1984/argus
-- Recovery files pushed to GitHub
-- All credentials stored in Keychain
-
-### In Progress 🔄
-- Waiting for Oracle Cloud credentials to build VM
-
-### Blocked ⏳
-- Oracle Cloud: Need Tenancy OCID + User OCID + API Token
-- Docker Hub login: Can't verify until Docker daemon fully initialized on Mac
+**Last Updated:** 2026-04-27 02:25 GMT+4
+**Status:** Module 1 Docker scaffold running on Mac Docker (7/7 services up)
 
 ---
 
-## What I Was Doing When Last Active
+## Active Work
 
-Setting up the development environment. Specifically:
-1. ✅ Installed GitHub CLI (`gh`)
-2. ✅ Authenticated with GitHub PAT
-3. ✅ Created empty repo ajayvm1984/argus
-4. ✅ Pushed recovery files
-5. 🔄 Waiting for Oracle Cloud VM credentials to proceed
+### Module 1: Docker Compose Scaffold (IN PROGRESS — DEV TESTING)
+**Running on:** Mac Docker Desktop (Mac mini at home)
+**Goal:** Validate full stack before Oracle Cloud VM is available
+
+**Status:**
+```
+✅ argus-db      — TimescaleDB (5432)
+✅ argus-api     — Node/Express API (8080, health OK)
+✅ argus-ui      — React/Vite UI (port 80 via nginx)
+✅ argus-nginx   — Reverse proxy (port 80/443)
+✅ argus-zabbix  — Zabbix server (10051)
+✅ argus-keycloak — Keycloak IAM (8080/8443)
+✅ argus-ntopng  — ntopng (3000, admin:admin)
+```
+
+**Fixes applied tonight:**
+- TypeScript errors in api/src/index.ts (removed req.params[0] broken routing)
+- Created missing routes: alerts.ts, devices.ts
+- Fixed schema.ts Drizzle table definitions
+- Fixed ui/Dockerfile: `npm install --omit=dev`
+- Fixed alert-dispatcher/Dockerfile
+- Fixed nginx.conf (stripped SSL, removed broken upstream references)
+- Fixed ntopng image: ntop/ntopng:latest (arm64 compatible)
+- Disabled alert-dispatcher (Twilio not configured yet)
 
 ---
 
-## What Needs to Happen Next (in order)
+## Next Actions
 
-1. **Get Oracle Cloud credentials from Ajay** — Tenancy OCID, User OCID, API Token
-2. **SSH into Oracle VM** and install Docker
-3. **Start Module 1** — Docker Compose scaffold with all services
-4. **Push first real code commit** to GitHub
+### Priority 1: Oracle Cloud VM (BLOCKED — no capacity in Dubai)
+- LaunchAgent `~/Library/LaunchAgents/com.argus.vm-retry.plist` running every 30 min
+- Waiting for host capacity to free up
+- **DO NOT attempt to create VM in Dubai** — confirmed exhausted
+
+### Priority 2: Hetzner Cloud (fallback)
+- Script ready: `~/bin/argus-vm-provision.sh`
+- Requires `HETZNER_API_TOKEN` env var
+- Ask Ajay for Hetzner API token when he's awake
+
+### Module 2: Zabbix Crawler
+- Poll Zabbix API every 5 minutes for new hosts
+- Parse host groups, templates, items, triggers
+- Write to TimescaleDB (argus-db)
+- **api/src/services/crawler.ts** — TODO: implement
+
+### Module 3: Keycloak Auth
+- Keycloak is running but not yet integrated with API
+- API currently returns 401 for all /api/* routes
+- **api/src/middleware/auth.ts** — needs JWT validation against Keycloak
 
 ---
 
-## Ajay's Goals
+## Infrastructure Decisions
 
-- Non-technical, never coded before
-- Needs everything documented clearly
-- Wants me to be self-sufficient
-- Build Argus as a commercial product
-- "Continue with Argus" triggers recovery
+- **Mac Docker for dev testing**: Fully operational
+- **Oracle Cloud Dubai**: Exhausted, do not attempt VM creation
+- **Hetzner**: Backup cloud option, awaiting API token
+- **All fixes pushed to GitHub**: commit `78e29c8`
 
 ---
 
-## Notes
+## Known Issues
 
-- Ajay is excited and wants to move fast
-- He may ask "B" to mean "Option B" or just "ok" 
-- Mac credentials: ajaymathai / evaroseajay
-- Oracle account: jothebot2026@gmail.com
+1. API `/api/*` returns 401 Unauthorized — auth middleware needs Keycloak JWT validation
+2. Zabbix web UI needs admin credentials (not configured in nginx yet)
+3. ntopng password is `admin` (hardcoded in docker-compose)
+4. No SSL/HTTPS configured for dev (nginx config stripped)
+5. Alert dispatcher disabled — needs Twilio credentials
+
+---
+
+## Recovery
+
+Trigger phrase: **"continue with Argus"** (lowercase)
+Repo: https://github.com/ajayvm1984/argus
+Latest commit: `78e29c8`
